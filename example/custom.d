@@ -124,7 +124,7 @@ class BTree(Key, Data)
     {
         assert(num >= 2, "The prerequisite of m-tree(size must be larger than 2)");
     }
-    body
+    do
     {
         MAX_CHILD  = num;
         HALF_CHILD = cast(uint)ceil(cast(real)MAX_CHILD / 2);
