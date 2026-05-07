@@ -209,7 +209,11 @@ struct StreamingUnpacker
         EXT_DATA,
 
         // D-specific type
-        REAL
+        REAL,
+
+        // bin payload state — separate from RAW so we can call callbackBin
+        // and produce Value.Type.bin instead of Value.Type.raw
+        RAW_BIN
     }
 
 
@@ -536,6 +540,11 @@ struct StreamingUnpacker
                     callbackRaw(obj, buffer_[base..base + trail]);
                     goto Lpush;
 
+                case State.RAW_BIN: Lbin:
+                    hasRaw_ = true;
+                    callbackBin(obj, buffer_[base..base + trail]);
+                    goto Lpush;
+
                 case State.EXT_DATA: Lext:
                     hasRaw_ = true;
                     obj.via.ext.type = buffer_[base];
@@ -563,25 +572,46 @@ struct StreamingUnpacker
                     cur++;
                     goto Lstart;
 
-                case State.STR8, State.BIN8:
+                case State.STR8:
                     trail = buffer_[base];
                     if (trail == 0)
                         goto Lraw;
                     state = State.RAW;
                     cur++;
                     goto Lstart;
-                case State.RAW16, State.BIN16:
+                case State.BIN8:
+                    trail = buffer_[base];
+                    if (trail == 0)
+                        goto Lbin;
+                    state = State.RAW_BIN;
+                    cur++;
+                    goto Lstart;
+                case State.RAW16:
                     trail = load16To!size_t(buffer_[base..base + trail]);
                     if (trail == 0)
                         goto Lraw;
                     state = State.RAW;
                     cur++;
                     goto Lstart;
-                case State.RAW32, State.BIN32:
+                case State.BIN16:
+                    trail = load16To!size_t(buffer_[base..base + trail]);
+                    if (trail == 0)
+                        goto Lbin;
+                    state = State.RAW_BIN;
+                    cur++;
+                    goto Lstart;
+                case State.RAW32:
                     trail = load32To!size_t(buffer_[base..base + trail]);
                     if (trail == 0)
                         goto Lraw;
                     state = State.RAW;
+                    cur++;
+                    goto Lstart;
+                case State.BIN32:
+                    trail = load32To!size_t(buffer_[base..base + trail]);
+                    if (trail == 0)
+                        goto Lbin;
+                    state = State.RAW_BIN;
                     cur++;
                     goto Lstart;
                 case State.ARRAY16:
@@ -823,6 +853,13 @@ void callbackFloat(ref Value value, real number)
 void callbackRaw(ref Value value, ubyte[] raw)
 {
     value.type    = Value.Type.raw;
+    value.via.raw = raw;
+}
+
+/// ditto — for msgpack v5 bin family (0xc4/0xc5/0xc6); shares via.raw storage
+void callbackBin(ref Value value, ubyte[] raw)
+{
+    value.type    = Value.Type.bin;
     value.via.raw = raw;
 }
 

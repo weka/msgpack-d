@@ -764,7 +764,7 @@ struct PackerImpl(Stream) if (isOutputRange!(Stream, ubyte) && isOutputRange!(St
     }
 
     /*
-     * Serializes raw type-information to stream for binary type.
+     * Serializes raw (str family) type-information to stream.
      */
     void beginRaw(in size_t length)
     {
@@ -786,6 +786,38 @@ struct PackerImpl(Stream) if (isOutputRange!(Stream, ubyte) && isOutputRange!(St
             const temp = convertEndianTo!32(length);
 
             store_[0] = Format.RAW32;
+            *cast(uint*)&store_[Offset] = temp;
+            stream_.put(store_[0..Offset + uint.sizeof]);
+        }
+    }
+
+
+    /*
+     * Serializes bin type-information (msgpack v5 bin8/bin16/bin32) to stream.
+     * Distinct from beginRaw, which writes str/raw format. Use this for opaque
+     * binary fields so the wire encoding is unambiguous.
+     */
+    void beginBin(in size_t length)
+    {
+        import std.conv : text;
+
+        if (length <= ubyte.max) {
+            store_[0] = Format.BIN8;
+            store_[1] = cast(ubyte)length;
+            stream_.put(store_[0..2]);
+        } else if (length <= ushort.max) {
+            const temp = convertEndianTo!16(length);
+
+            store_[0] = Format.BIN16;
+            *cast(ushort*)&store_[Offset] = temp;
+            stream_.put(store_[0..Offset + ushort.sizeof]);
+        } else {
+            if (length > 0xffffffff)
+                throw new MessagePackException(text("size of bin is too long to pack: ", length,  " bytes should be <= ", 0xffffffff));
+
+            const temp = convertEndianTo!32(length);
+
+            store_[0] = Format.BIN32;
             *cast(uint*)&store_[Offset] = temp;
             stream_.put(store_[0..Offset + uint.sizeof]);
         }

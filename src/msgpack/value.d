@@ -50,8 +50,9 @@ struct Value
         floating,  /// float, double, real
         array,     /// fix array, array 16, array 32
         map,       /// fix map, map 16, map 32
-        raw,       /// fix raw, raw 16, raw 32
-        ext        /// fix ext, ext8, ext16, ext32
+        raw,       /// fix raw, str 8, raw 16, raw 32 (msgpack v5 str family)
+        ext,       /// fix ext, ext8, ext16, ext32
+        bin        /// bin 8, bin 16, bin 32 (msgpack v5 bin family); shares via.raw storage
     }
 
 
@@ -423,6 +424,10 @@ struct Value
         case Type.raw:
             packer.pack(via.raw);
             break;
+        case Type.bin:
+            packer.beginBin(via.raw.length);
+            packer.stream.put(via.raw);
+            break;
         case Type.ext:
             packer.packExt(via.ext.type, via.ext.data);
             break;
@@ -458,6 +463,7 @@ struct Value
         case Type.signed:   return opEquals(other.via.integer);
         case Type.floating: return opEquals(other.via.floating);
         case Type.raw:      return opEquals(other.via.raw);
+        case Type.bin:      return opEquals(other.via.raw);
         case Type.ext:      return opEquals(other.via.ext);
         case Type.array:    return opEquals(other.via.array);
         case Type.map:      return opEquals(other.via.map);
@@ -585,6 +591,7 @@ struct Value
         case Type.signed:   return getHash(&via.integer);
         case Type.floating: return getHash(&via.floating);
         case Type.raw:      return getHash(&via.raw);
+        case Type.bin:      return getHash(&via.raw);
         case Type.ext:      return getHash(&via.ext);
         case Type.array:
             hash_t ret;
@@ -811,6 +818,7 @@ JSONValue toJSONValue(in Value val)
         case Value.Type.signed:   return JSONValue(val.via.integer);
         case Value.Type.floating: return JSONValue(val.via.floating);
         case Value.Type.raw:      return JSONValue(cast(string)(val.via.raw.idup));
+        case Value.Type.bin:      throw new MessagePackException("Unable to convert bin to json");
         case Value.Type.ext:      throw new MessagePackException("Unable to convert ext to json");
         case Value.Type.array: {
             JSONValue[] vals;
